@@ -1,0 +1,48 @@
+{
+  "models": [
+    {
+      "title": "Llama CPP",
+      "provider": "llama.cpp",
+      "model": "codellama-34b",
+      "sagemaker_endpoint_name": "CodeLlama34BInstructStreaming"
+    }
+  ],
+  "model_roles": {
+    "default": "Llama CPP"
+  },
+  "system_message": "",
+  "slash_commands": [
+    {
+      "name": "edit",
+      "description": "Edit highlighted code",
+      "step": "EditHighlightedCodeStep"
+    },
+    {
+      "name": "comment",
+      "description": "Write comments for the highlighted code",
+      "step": "CommentCodeStep"
+    },
+    {
+      "name": "share",
+      "description": "Download and share this session",
+      "step": "ShareSessionStep"
+    },
+    {
+      "name": "cmd",
+      "description": "Generate a shell command",
+      "step": "GenerateShellCommandStep"
+    }
+  ],
+  "custom_commands": [
+    {
+      "name": "test",
+      "prompt": "Write a comprehensive set of unit tests for the selected code. It should setup, run tests that check for correctness including important edge cases, and teardown. Ensure that the tests are complete and sophisticated. Give the tests just as chat output, don't edit any file.",
+      "description": "Write unit tests for highlighted code"
+    }
+  ],
+  "context_providers": [
+    {
+      "name": "tree"
+    }
+  ]
+}

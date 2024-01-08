@@ -34,9 +34,9 @@ _codellama_edit_prompt = dedent(
             {{{code_to_edit}}}
             [/CODE]
             [INST]
-            You are an expert programmer and personal assistant, here is your task: "Rewrite the above code in order to {{{user_input}}}"
+            You are an expert Python programmer and personal assistant, here is your task: "Rewrite the above code in order to {{{user_input}}}"
 
-            Your answer should start with a [CODE] tag and end with a [/CODE] tag.
+            Try to meet the requirements with minimum code. Do not create anything else that are not asked. Your answer should start with a [CODE] tag and end with a [/CODE] tag.
             [/INST] Sure! Here's the code you requested:
             [CODE]"""
 )

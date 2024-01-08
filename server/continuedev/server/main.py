@@ -107,7 +107,7 @@ def cleanup():
 
 
 def run_server(
-    port: int = 65432,
+    port: int = 65433,
     host: str = "127.0.0.1",
     meilisearch_url: Optional[str] = None,
     disable_meilisearch: bool = False,
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     try:
         # add cli arg for server port
         parser = argparse.ArgumentParser()
-        parser.add_argument("-p", "--port", help="server port", type=int, default=65432)
+        parser.add_argument("-p", "--port", help="server port", type=int, default=65433)
         parser.add_argument("--host", help="server host", type=str, default="127.0.0.1")
         args = parser.parse_args()
     except Exception as e:

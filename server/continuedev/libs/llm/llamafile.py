@@ -82,7 +82,7 @@ class Llamafile(LlamaCpp):
 
         return False
 
-    def start(self, unique_id: str | None = None):
+    def start(self, unique_id: str= None):
         super().start(unique_id)
         self.check_and_start(False)
 

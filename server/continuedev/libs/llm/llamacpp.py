@@ -5,6 +5,12 @@ from pydantic import Field, validator
 
 from .base import LLM
 
+import boto3
+import json
+import io
+
+sagemaker = boto3.client("sagemaker-runtime", region_name='us-east-1')
+
 
 class LlamaCpp(LLM):
     """
@@ -22,20 +28,20 @@ class LlamaCpp(LLM):
             "title": "Llama CPP",
             "provider": "llama.cpp",
             "model": "MODEL_NAME",
-            "api_base": "http://localhost:8080"
+            "sagemaker_endpoint_name": "http://localhost:8080"
         }]
     }
     ```
     """
 
     model: str = "llamacpp"
-    api_base: Optional[str] = Field(
-        "http://127.0.0.1:8080", description="URL of the server"
+    sagemaker_endpoint_name: Optional[str] = Field(
+        "CodeLlama7BInstructStreaming", description="Name of the SageMaker endpoint"
     )
 
-    @validator("api_base", pre=True, always=True)
-    def set_api_base(cls, api_base):
-        return api_base or "http://127.0.0.1:8080"
+    @validator("sagemaker_endpoint_name", pre=True, always=True)
+    def set_sagemaker_endpoint_name(cls, sagemaker_endpoint_name):
+        return sagemaker_endpoint_name or "CodeLlama7BInstructStreaming"
 
     llama_cpp_args: Dict[str, Any] = Field(
         {"stop": ["[INST]"]},
@@ -63,21 +69,82 @@ class LlamaCpp(LLM):
 
     async def _stream_complete(self, prompt, options):
         args = self.collect_args(options)
-        headers = {"Content-Type": "application/json"}
 
         async def server_generator():
-            async with self.create_client_session() as client_session:
-                async with client_session.post(
-                    f"{self.api_base}/completion",
-                    json={"prompt": prompt, "stream": True, **args},
-                    headers=headers,
-                    proxy=self.request_options.proxy,
-                ) as resp:
-                    async for line in resp.content:
-                        content = line.decode("utf-8")
-                        if content.strip() == "":
-                            continue
-                        yield json.loads(content[6:])["content"]
+            # api = "https://runtime.sagemaker.us-east-1.amazonaws.com/endpoints/CodeLlama7BInstruct/invocations"
+            smr_inference_stream = SmrInferenceStream(
+                sagemaker, self.sagemaker_endpoint_name)
+            stream = smr_inference_stream.stream_inference({
+                "action": "completion",
+                "completion": {
+                    "stream": True,
+                    "prompt": prompt,
+                    "temperature": 0.10,
+                    "max_tokens": 600,
+                    "top_p": 0.90,
+                    "stop": [
+                        "\n\n\n\n",
+                        "[INST]",
+                        "[/CODE]"
+                    ]
+                }
+            })
+            for chunk in stream:
+                yield chunk
 
         async for chunk in server_generator():
             yield chunk
+
+
+class SmrInferenceStream:
+    def __init__(self, sagemaker_runtime, endpoint_name):
+        self.sagemaker_runtime = sagemaker_runtime
+        self.endpoint_name = endpoint_name
+        # A buffered I/O stream to combine the payload parts:
+        self.buff = io.BytesIO()
+        self.read_pos = 0
+
+    def stream_inference(self, request_body):
+        # Gets a streaming inference response
+        # from the specified model endpoint:
+        response = self.sagemaker_runtime \
+            .invoke_endpoint_with_response_stream(
+            EndpointName=self.endpoint_name,
+            Body=json.dumps(request_body),
+            ContentType="application/json"
+        )
+        # Gets the EventStream object returned by the SDK:
+        event_stream = response['Body']
+        for event in event_stream:
+            # Passes the contents of each payload part
+            # to be concatenated:
+            self._write(event['PayloadPart']['Bytes'])
+            # Iterates over lines to parse whole JSON objects:
+            for line in self._readlines():
+                if len(line) == 0:
+                    continue
+                resp = json.loads(line)
+                part = resp.get("choices")[0]['text']
+                if part != "":
+                    yield part
+        # yield ' <END>'
+
+    # Writes to the buffer to concatenate the contents of the parts:
+    def _write(self, content):
+        self.buff.seek(0, io.SEEK_END)
+        self.buff.write(content)
+
+    # The JSON objects in buffer end with '\n'.
+    # This method reads lines to yield a series of JSON objects:
+    def _readlines(self):
+        self.buff.seek(self.read_pos)
+        delimiter = b"*nestW0rd*"
+        content = self.buff.read().decode('utf-8')  # Decode bytes to string
+        lines = content.split(delimiter.decode('utf-8'))
+        for line in lines[
+                    :-1]:  # Exclude the last element as it may be an empty string the add delimiter will cause wrong offset
+            self.read_pos += (len(line) + len(delimiter))
+            yield line
+
+
+
